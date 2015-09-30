@@ -491,6 +491,42 @@ def store_response(resp, response_dict):
         response_dict['headers'] = resp_headers
 
 
+def get_account_iter(url, token, marker=None, limit=None, prefix=None,
+                        end_marker=None, http_conn=None,
+                        service_token=None):
+    """
+    Get a listing iterator of containers for the account.
+
+    :param url: storage URL
+    :param token: auth token
+    :param marker: marker query
+    :param limit: limit query
+    :param prefix: prefix query
+    :param end_marker: end_marker query
+    :param http_conn: HTTP connection object (If None, it will create the
+                      conn object)
+    :param full_listing: if True, return a full listing, else returns a max
+                         of 10000 listings
+    :param service_token: service auth token
+    :returns: a tuple of (response headers, a list of containers) The response
+              headers will be a dict and all header names will be lowercase.
+    :raises ClientException: HTTP GET request failed
+    """
+    if not http_conn:
+        http_conn = http_connection(url)
+
+    while 42:
+        
+        listing = get_account(url, token, marker, limit, prefix,
+                              end_marker, http_conn)[1]
+        marker = listing[-1]['name']
+
+        if not listing:
+            break
+
+        yield listing
+
+
 def get_account(url, token, marker=None, limit=None, prefix=None,
                 end_marker=None, http_conn=None, full_listing=False,
                 service_token=None):
@@ -633,6 +669,54 @@ def post_account(url, token, headers, http_conn=None, response_dict=None,
                               http_status=resp.status,
                               http_reason=resp.reason,
                               http_response_content=body)
+
+
+def get_container_iter(url, token, container, marker=None, limit=None,
+                        prefix=None, delimiter=None, end_marker=None,
+                        path=None, http_conn=None,
+                        service_token=None, headers=None):
+    """
+    Get a iterator for listing of objects for the container.
+
+    :param url: storage URL
+    :param token: auth token
+    :param container: container name to get a listing for
+    :param marker: marker query
+    :param limit: limit query
+    :param prefix: prefix query
+    :param delimiter: string to delimit the queries on
+    :param end_marker: marker query
+    :param path: path query (equivalent: "delimiter=/" and "prefix=path/")
+    :param http_conn: HTTP connection object (If None, it will create the
+                      conn object)
+    :param service_token: service auth token
+    :returns: a tuple of (response headers, a list of objects) The response
+              headers will be a dict and all header names will be lowercase.
+    :raises ClientException: HTTP GET request failed
+    """
+    if not http_conn:
+        http_conn = http_connection(url)
+    if headers:
+        headers = dict(headers)
+    else:
+        headers = {}
+    headers['X-Auth-Token'] = token
+
+    while 42:
+
+        listing = get_container(url, token, container, marker, limit,
+                                prefix, delimiter, end_marker, path,
+                                http_conn, service_token,
+                                headers=headers)[1]
+        if not listing:
+            break
+
+        yield listing
+
+        if not delimiter:
+            marker = listing[-1]['name']
+        else:
+            marker = listing[-1].get('name', listing[-1].get('subdir'))
 
 
 def get_container(url, token, container, marker=None, limit=None,
